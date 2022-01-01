@@ -213,7 +213,7 @@ class HtmlStash:
         self.tag_counter = 0
         self.tag_data = []  # list of dictionaries in the order tags appear
 
-    def store(self, html):
+    def store(self, html, indent=0):
         """
         Saves an HTML segment for later reinsertion.  Returns a
         placeholder string that needs to be inserted into the
@@ -227,7 +227,7 @@ class HtmlStash:
 
         """
         self.rawHtmlBlocks.append(html)
-        placeholder = self.get_placeholder(self.html_counter)
+        placeholder = self.get_placeholder(self.html_counter, indent)
         self.html_counter += 1
         return placeholder
 
@@ -235,8 +235,8 @@ class HtmlStash:
         self.html_counter = 0
         self.rawHtmlBlocks = []
 
-    def get_placeholder(self, key):
-        return HTML_PLACEHOLDER % key
+    def get_placeholder(self, key, indent=0):
+        return ' ' * indent + HTML_PLACEHOLDER % key
 
     def store_tag(self, tag, attrs, left_index, right_index):
         """Store tag data and return a placeholder."""

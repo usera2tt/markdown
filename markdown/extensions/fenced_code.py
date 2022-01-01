@@ -28,12 +28,15 @@ import re
 class FencedCodeExtension(Extension):
     def __init__(self, **kwargs):
         self.config = {
-            'lang_prefix': ['language-', 'Prefix prepended to the language. Default: "language-"']
+            'lang_prefix': ['language-', 'Prefix prepended to the language. Default: "language-"'],
+            'tab_length': [4, 'tab_length_with_space'],
         }
         super().__init__(**kwargs)
 
     def extendMarkdown(self, md):
         """ Add FencedBlockPreprocessor to the Markdown instance. """
+        self.setConfig('tab_length', md.tab_length)
+
         md.registerExtension(self)
 
         md.preprocessors.register(FencedBlockPreprocessor(md, self.getConfigs()), 'fenced_code_block', 25)
@@ -42,13 +45,14 @@ class FencedCodeExtension(Extension):
 class FencedBlockPreprocessor(Preprocessor):
     FENCED_BLOCK_RE = re.compile(
         dedent(r'''
-            (?P<fence>^(?:~{3,}|`{3,}))[ ]*                          # opening fence
+            (?P<indent>[ \t]*)                                       # indentation depth
+            (?P<fence>(?:~{3,}|`{3,}))[ ]*                           # opening fence
             ((\{(?P<attrs>[^\}\n]*)\})|                              # (optional {attrs} or
             (\.?(?P<lang>[\w#.+-]*)[ ]*)?                            # optional (.)lang
             (hl_lines=(?P<quot>"|')(?P<hl_lines>.*?)(?P=quot)[ ]*)?) # optional hl_lines)
             \n                                                       # newline (end of opening fence)
             (?P<code>.*?)(?<=\n)                                     # the code block
-            (?P=fence)[ ]*$                                          # closing fence
+            \s*(?P=fence)[ ]*$                                       # closing fence
         '''),
         re.MULTILINE | re.DOTALL | re.VERBOSE
     )
@@ -84,6 +88,10 @@ class FencedBlockPreprocessor(Preprocessor):
         while 1:
             m = self.FENCED_BLOCK_RE.search(text)
             if m:
+                # Added here. De-indent code group for indented fenced code block
+                _code = dedent(m.group('code'))
+                _indent = m.group('indent').expandtabs(self.config['tab_length'])
+
                 lang, id, classes, config = None, '', [], {}
                 if m.group('attrs'):
                     id, classes, config = self.handle_attrs(get_attrs(m.group('attrs')))
@@ -110,7 +118,7 @@ class FencedBlockPreprocessor(Preprocessor):
                             local_config['css_class']
                         )
                     highliter = CodeHilite(
-                        m.group('code'),
+                        _code,
                         lang=lang,
                         style=local_config.pop('pygments_style', 'default'),
                         **local_config
@@ -137,10 +145,10 @@ class FencedBlockPreprocessor(Preprocessor):
                         cls=class_attr,
                         lang=lang_attr,
                         kv=kv_pairs,
-                        code=self._escape(m.group('code'))
+                        code=self._escape(_code)
                     )
 
-                placeholder = self.md.htmlStash.store(code)
+                placeholder = self.md.htmlStash.store(code, indent=len(_indent))
                 text = '{}\n{}\n{}'.format(text[:m.start()],
                                            placeholder,
                                            text[m.end():])
